@@ -1,4 +1,4 @@
-﻿import setuptools
+import setuptools
 import os
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +12,7 @@ setuptools.setup(
     author_email='willi1wacker@gmx.de',
     url='http://github.com/williwacker/fritzCallMon',
     description='Monitor incoming and outgoing external calls in the Fritz!Box and do a backward search for the callers name',
-    packages=['fritzCallMon', 'fritzCallMon/data', 'fritzCallMon/config'],
+    packages=setuptools.find_packages(),
     long_description=long_description,
     keywords='fritz fritzconnection',
     zip_safe=False,
