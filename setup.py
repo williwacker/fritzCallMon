@@ -27,7 +27,7 @@ setup(
     long_description=long_description,
     keywords='fritz fritzconnection',
     zip_safe=False,
-    install_requires=['Python>=3.8'],
+    install_requires=['Python>=3.11'],
     test_suite='runtests.runtests',
     include_package_data=True,
     classifiers=[
