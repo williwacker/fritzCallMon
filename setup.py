@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 
 try:
-    from setuptools import setup, find_packages
+    from setuptools import find_packages, setup
     from setuptools.command.test import test
 except ImportError:
     from ez_setup import use_setuptools
@@ -9,18 +9,17 @@ except ImportError:
     use_setuptools()
     from setuptools import setup, find_packages
     from setuptools.command.test import test
+
 import os
 
-
 here = os.path.dirname(os.path.abspath(__file__))
-f = open(os.path.join(here, 'README.rst'))
-long_description = f.read().strip()
-f.close()
+with open(os.path.join(here, 'README.md'), encoding='utf-8', mode='r') as f:
+    long_description = f.read().strip()
 
 setup(
     name='fritzCallMon',
     version='0.3.1',
-    author='Werner K�hn',
+    author='Werner Kühn',
     author_email='willi1wacker@gmx.de',
     url='http://github.com/williwacker/fritzCallMon',
     description='Monitor incoming and outgoing external calls in the Fritz!Box and do a backward search for the callers name',
