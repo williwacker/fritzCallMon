@@ -1,0 +1,12 @@
+*.bat
+*.log
+*.list
+*.wav
+_static/
+__pycache__/
+build/
+help.txt
+.vscode/*
+test_phonebook.py
+fritzCallMon.log.*
+fritzCallMon/config/fritzBackwardSearch.ini

@@ -1,0 +1,12 @@
+[DEFAULT]
+FRITZ_IP_ADDRESS=      192.168.178.1
+FRITZ_TCP_PORT=        49000
+FRITZ_CALLMON_PORT=    1012
+CALLMON_SERVER_SOCKET= 26260
+FRITZ_USERNAME=        dslf-config
+NAME_NOT_FOUND_FILE=   /var/fritz/nameNotFound.list
+PHONE_MSG_DIR=         /usr/temp
+FRITZ_PHONE_BOOK=      Collected_Calls
+PASSWORD=              000000
+LOGFILE=               /var/log/fritz/fritzCallMon.log
+LOGLEVEL=              INFO
