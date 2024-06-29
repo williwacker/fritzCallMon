@@ -27,7 +27,7 @@ setup(
     long_description=long_description,
     keywords='fritz fritzconnection',
     zip_safe=False,
-    install_requires=['fritzCallMon',],
+    install_requires=[],
     python_requires='>=3',
     test_suite='runtests.runtests',
     include_package_data=True,
