@@ -1,4 +1,25 @@
-Metadata-Version: 2.1.1
+Metadata-Version: 1.2
 Name: fritzCallMon
 Version: 0.3.1
-License-File: LICENSE.md
+Summary: Monitor incoming and outgoing external calls in the Fritz!Box and do a backward search for the callers name
+Home-page: http://github.com/williwacker/fritzCallMon
+Author: Werner Kühn
+Author-email: willi1wacker@gmx.de
+License: UNKNOWN
+Description: Fritz Backward Search
+        =====================
+        
+        The fritzCallMon script monitors the incoming and outgoing external calls in the Fritz!Box and calls the fritzBackwardSearch script.
+        This script queries the phone caller list for unknown callers using the TR-064 interface of a Fritz!Box, implemented with the
+        (https://pypi.python.org/pypi/fritzconnection) package, does a backward search in the internet and updates the Fritz phone book with the
+        number and name.
+        
+        Full documentation can be found on [read the docs](https://fritz-backward-search.readthedocs.org/).
+Keywords: fritz fritzconnection
+Platform: UNKNOWN
+Classifier: Framework :: Python
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development
+Requires-Python: >=3

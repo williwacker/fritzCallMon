@@ -1,10 +1,13 @@
-LICENSE.txt
+AUTHORS
+LICENSE.md
+MANIFEST.in
+README.md
 setup.py
-fritzCallMon/fritzCallMon.py
 fritzCallMon/fritzBackwardSearch.py
-fritzCallMon/fritzCallsDuringAbsence.py
+fritzCallMon/fritzCallMon.py
 fritzCallMon/tag.py
 fritzCallMon.egg-info/PKG-INFO
 fritzCallMon.egg-info/SOURCES.txt
 fritzCallMon.egg-info/dependency_links.txt
+fritzCallMon.egg-info/not-zip-safe
 fritzCallMon.egg-info/top_level.txt
