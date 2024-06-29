@@ -12,7 +12,7 @@ setuptools.setup(
     author_email='willi1wacker@gmx.de',
     url='http://github.com/williwacker/fritzCallMon',
     description='Monitor incoming and outgoing external calls in the Fritz!Box and do a backward search for the callers name',
-    packages=setuptools.find_packages(),
+    packages=['fritzCallMon', 'fritzCallMon/data', 'fritzCallMon/config'],
     long_description=long_description,
     keywords='fritz fritzconnection',
     zip_safe=False,
