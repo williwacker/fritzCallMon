@@ -2,6 +2,6 @@ include AUTHORS
 include LICENSE.md
 include MANIFEST.in
 include README.md
-recursive-include requirements.pip
+include requirements.pip
 recursive-include fritzCallMon/data *
 recursive-include fritzCallMon/config *
