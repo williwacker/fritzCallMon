@@ -110,17 +110,17 @@ class CallMonServer():
     def startFritzboxCallMonitor(self):
         worker1 = threading.Thread(
             target=self.runFritzboxCallMonitor, name="runFritzboxCallMonitor")
-        worker1.setDaemon(True)
+        worker1.daemon = True
         worker1.start()
 
         worker2 = threading.Thread(
             target=self.runFritzBackwardSearch, name="runFritzBackwardSearch")
-        worker2.setDaemon(True)
+        worker2.daemon = True
         worker2.start()
 
         worker3 = threading.Thread(
             target=self.runFritzCallsDuringAbsense, name="runFritzCallsDuringAbsense")
-        worker3.setDaemon(True)
+        worker3.daemon = True
         worker3.start()
 
     # ###########################################################
