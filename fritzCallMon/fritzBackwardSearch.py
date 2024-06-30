@@ -116,7 +116,7 @@ class FritzCalls():
             while (name == None and len(fullNumber) > (l_onkz + 3)):
                 name = self.lookup_dasoertliche(fullNumber)
                 if not name:
-                    logger.info('{} not found'.format(fullNumber))
+                    logger.info('%s not found', fullNumber)
                     nameNotFoundList.append(fullNumber)
                     if fullNumber != number and not numberLogged:
                         nameNotFoundList.append(number)
@@ -166,7 +166,7 @@ class MyFritzPhonebook(object):
         if name and isinstance(name, list):
             name = name[0]
         self.bookNumber = None
-        for book_id in FritzPhonebook(self.connection).list_phonebooks:
+        for book_id in FritzPhonebook(self.connection).phonebook_ids:
             book = FritzPhonebook(self.connection).phonebook_info(book_id)
             if book['name'] == name:
                 self.bookNumber = book_id
@@ -226,7 +226,7 @@ class MyFritzPhonebook(object):
             newnumber.text = phone_number
             newnumber.set('type', 'home')
             newnumber.set('prio', '1')
-        if not newnumber == None:
+        if not newnumber is None:
             for telephony in phonebookEntry.iter('telephony'):
                 telephony.append(newnumber)
             arg = {
@@ -276,7 +276,7 @@ class FritzBackwardSearch(object):
             self.prefs = self.__read_configuration__(fname)
         else:
             logger.error('%s not found', fname)
-            exit(1)
+            sys.exit(1)
         self.__init_logging__()
         global args
         args = self.__get_cli_arguments__()
@@ -289,14 +289,14 @@ class FritzBackwardSearch(object):
         self.phonebook = MyFritzPhonebook(self.connection, name=args.phonebook)
         self.phonebook.get_phonebook()
         self.notfoundfile = args.notfoundfile
-        if args.notfoundfile and type(args.notfoundfile) is list:
+        if args.notfoundfile and isinstance(args.notfoundfile, list):
             self.notfoundfile = args.notfoundfile[0]
         try:
             self.nameNotFoundList = open(
-                self.notfoundfile, 'r').read().splitlines()
+                self.notfoundfile, encoding='utf-8', mode='r').read().splitlines()
         except:
             self.nameNotFoundList = open(
-                self.notfoundfile, 'w+').read().splitlines()
+                self.notfoundfile, encoding='utf-8', mode='w+').read().splitlines()
 
     def __init_logging__(self):
         numeric_level = getattr(logging, self.prefs['loglevel'].upper(), None)
@@ -332,7 +332,7 @@ class FritzBackwardSearch(object):
                 for row in csvfile:
                     self.onkz.append(row.strip().split('\t'))
         else:
-            logger.error('% not found', fname)
+            logger.error('%s not found', fname)
 
     def get_ONKz_length(self, phone_number):
         for row in self.onkz:
@@ -393,30 +393,30 @@ class FritzBackwardSearch(object):
         if args.password == '':
             logger.error('No password given')
             sys.exit(1)
-        if args.password and type(args.password) == list:
+        if args.password and isinstance(args.password, list):
             args.password = args.password[0].rstrip()
         calls = FritzCalls(
             self.connection, nameNotFoundList=self.nameNotFoundList)
         nameList = ''
         searchnumber = []
         if args.searchnumber:
-            if type(args.searchnumber) == tuple:
+            if isinstance(args.searchnumber, tuple):
                 searchnumber += args.searchnumber
             else:
                 searchnumber.append(args.searchnumber)
         if s:
-            if type(s) == tuple:
+            if isinstance(s, tuple):
                 searchnumber += s
             else:
                 searchnumber.append(s)
         if searchnumber:
             for number in searchnumber:
-                logger.info("Searching for {}".format(number))
+                logger.info("Searching for %s", number)
                 contact = self.phonebook.get_entry(number=number)
                 if not contact:
                     if number in self.nameNotFoundList:
                         logger.info(
-                            '{} already in nameNotFoundList'.format(number))
+                            '%s already in nameNotFoundList', number)
                     else:
                         new = Call()
                         new.Name = number
@@ -436,7 +436,7 @@ class FritzBackwardSearch(object):
         nameNotFoundList_length = len(self.nameNotFoundList)
         knownCallers = calls.get_names(self.nameNotFoundList)
         if len(self.nameNotFoundList) > nameNotFoundList_length:
-            with open(self.notfoundfile, "w") as outfile:
+            with open(self.notfoundfile, encoding='utf-8', mode="w") as outfile:
                 outfile.write("\n".join(self.nameNotFoundList))
         self.phonebook.add_entry_list(knownCallers)
         if s in knownCallers:
