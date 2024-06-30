@@ -1,5 +1,7 @@
-import setuptools
 import os
+
+import setuptools
+
 
 def get_install_requires():
     install_requires = []
@@ -15,6 +17,7 @@ def get_install_requires():
         install_requires.append('ordereddict')
 
     return install_requires
+
 
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, 'README.md'), encoding='utf-8', mode='r') as f:
