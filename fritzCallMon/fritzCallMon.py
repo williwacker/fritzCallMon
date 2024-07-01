@@ -227,7 +227,7 @@ class CallMonServer():
             logger.error("Cannot open socket %s : %s",
                          self.prefs['callmon_server_socket'], e)
             return
-
+        print('fritzCallMon has been started')
         while True:
             try:
                 self.srvSock.listen(5)
