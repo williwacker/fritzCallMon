@@ -25,7 +25,7 @@ with open(os.path.join(here, 'README.md'), encoding='utf-8', mode='r') as f:
 
 setuptools.setup(
     name='fritzCallMon',
-    version='0.3.2',
+    version='0.3.3',
     author='Werner Kühn',
     author_email='willi1wacker@gmx.de',
     url='https://github.com/williwacker/fritzCallMon',
