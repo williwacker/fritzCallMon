@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 import configparser
 import datetime
 import logging
@@ -65,7 +62,7 @@ class CallMonServer():
         self.fb_queue = Queue()
         self.fb_absense_queue = Queue()
 
-        self.FBS = FritzBackwardSearch()
+        self.FBS = FritzBackwardSearch(self.prefs)
         self.FCDA = FritzCallsDuringAbsense(self.connection, self.prefs)
         self.startFritzboxCallMonitor()
 
@@ -199,7 +196,8 @@ class CallMonServer():
                 # RING;ID;CALLER;CALLED;
                 # CONNECT;ID;PORT;CALLER;
                 # DISCONNECT;ID;SECONDS;
-                call_type, call_id, caller_or_port = msgtxt.decode().split(';')[1:4]
+                call_type, call_id, caller_or_port = msgtxt.decode().split(';')[
+                    1:4]
                 if call_type == "RING":
                     call_history[call_id] = caller_or_port
                     logger.info(call_history)
