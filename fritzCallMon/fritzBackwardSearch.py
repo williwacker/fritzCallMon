@@ -299,7 +299,7 @@ class FritzBackwardSearch(object):
         else:
             self.prefs = prefs
 
-        self.__init_logging__()
+        #self.__init_logging__()
         global args
         args = self.__get_cli_arguments__()
         self.connection = FritzConnection(
