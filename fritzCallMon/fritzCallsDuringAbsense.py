@@ -30,10 +30,9 @@ class FritzCallsDuringAbsense():
 		return self.sid
 
 	def get_fullCode(self, code):
-		if code == None or code[:1] == '0':
+		if code is None or code[:1] == '0':
 			return code
-		else:
-			return self.areaCode + code
+		return self.areaCode + code
 
 	def set_unresolved(self, caller):
 		self.unresolved_list.append(caller)

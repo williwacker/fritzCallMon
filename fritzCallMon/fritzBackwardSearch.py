@@ -266,18 +266,22 @@ class MyFritzPhonebook(object):
 
 class FritzBackwardSearch(object):
 
-    def __init__(self):
-        fname = os.path.join(
-            os.path.dirname(__file__),
-            'config',
-            'fritzBackwardSearch.ini',
-        )
-        if os.path.isfile(fname):
-            self.prefs = self.__read_configuration__(fname)
+    def __init__(self, prefs=None):
+        if not prefs:
+            fname = os.path.join(
+                os.path.dirname(__file__),
+                'config',
+                'fritzBackwardSearch.ini',
+            )
+            if os.path.isfile(fname):
+                self.prefs = self.__read_configuration__(fname)
+            else:
+                logger.error('%s not found', fname)
+                sys.exit(1)
         else:
-            logger.error('%s not found', fname)
-            sys.exit(1)
-        self.__init_logging__()
+            self.prefs = prefs
+
+#        self.__init_logging__()
         global args
         args = self.__get_cli_arguments__()
         self.__read_ONKz__()
