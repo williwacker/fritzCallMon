@@ -1,33 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-
-Read the phone calls list and extract the ones that have no phonebook entry
-Do a backward search with the used number and if a name has been found add the entry to the given phonebook
-
-@Werner Kuehn - Use at your own risk
-29.01.2016           Add alternate number search
-09.02.2016           Fixed duplicate phonebook entries. Handling of type 2 calls
-17.02.2016           Append numbers to existing phonebook entries
-18.02.2016           Remove quickdial entry
-17.03.2016           Changed html.parser to html.parser.HTMLParser()
-21.03.2016           Added config file
-23.03.2016           Fixed phone book entry names handling for html special characters
-08.04.2016 0.2.0 WK  Added fritzCallMon.py, made fritzBackwardSearch module callable
-27.04.2016 0.2.2 WK  Enhanced search by removing numbers at the end in case someone has dialed more numbers
-03.08.2016 0.2.3 WK  Fix duplicate phonebook entries caused by following call of Type 10
-27.12.2016 0.2.4 WK  Improve search by adding zero at the end
-25.07.2017 0.2.5 WK  Correct html conversion in dastelefonbuch
-09.08.2017 0.2.6 WK  Add area code length into suzzy search. Avoid adding pre-dial numbers into the phone book
-27.08.2017 0.2.7 WK  Replace & in phonebook name with u. as AVM hasn't fixed this problem yet
-02.03.2023 0.3.3 WK  Adopt to latest dasoertliche output
-
-
-"""
-
-__version__ = '0.3.0'
-
 import argparse
 import configparser
 import copy
@@ -37,16 +7,18 @@ import logging
 import os
 import re
 import sys
+from ast import literal_eval
 from xml.etree.ElementTree import fromstring, tostring
 
 import certifi
 import urllib3
-from bs4 import BeautifulSoup
 from fritzconnection import FritzConnection
 from fritzconnection.lib.fritzcall import Call, FritzCall
 from fritzconnection.lib.fritzphonebook import FritzPhonebook
 
 logger = logging.getLogger(__name__)
+
+__version__ = '0.3.3'
 
 args = argparse.Namespace()
 args.logfile = ''
@@ -57,11 +29,13 @@ class FritzCalls():
     def __init__(self, connection, nameNotFoundList):
         self.http = urllib3.PoolManager(
             cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
+        self.connection = connection
         self.areaCode = (connection.call_action(
             'X_VoIP', 'GetVoIPCommonAreaCode'))['NewVoIPAreaCode']
         self.nameNotFoundList = nameNotFoundList
         self.calldict = FritzCall(fc=connection).get_calls()
         self.get_unknown()
+        self.__read_ONKz__()
 
     def get_unknown(self):  # get list of callers not listed with their name
         self.unknownCallers = {}
@@ -87,6 +61,27 @@ class FritzCalls():
             if self.calldict[i].Name in self.nameNotFoundList:
                 del self.calldict[i]
 
+    def __read_ONKz__(self):  # read area code numbers
+        self.onkz = []
+        fname = os.path.join(
+            os.path.dirname(__file__),
+            'data',
+            args.areacodefile,
+        )
+        if os.path.isfile(fname):
+            with open(fname, encoding='utf-8', mode='r') as csvfile:
+                for row in csvfile:
+                    self.onkz.append(row.strip().split('\t'))
+        else:
+            logger.error('%s not found', fname)
+
+    def get_ONKz_length(self, phone_number):
+        for row in self.onkz:
+            if phone_number[0:len(row[0])] == row[0]:
+                return len(row[0])
+        # return 4 as default length if not found (e.g. 0800)
+        return 4
+
     def get_names(self, nameNotFoundList):
         foundlist = {}
         for call in self.calldict:
@@ -97,10 +92,11 @@ class FritzCalls():
                 fullNumber = ""
                 logger.info("Ignoring international number %s", number)
                 nameNotFoundList.append(number)
-            # remove pre-dial number
+            # remove pre-dial number for mobile
             elif number.startswith("010"):
-                nextZero = number.find('0', 3)
-                number = number[nextZero:]
+                m = re.search("^010\d*?(01(5|6|7)\d+)", number)
+                if m:
+                    number = m.group(1)
                 fullNumber = number
             else:
                 # add the area code for local numbers
@@ -137,7 +133,15 @@ class FritzCalls():
                     numberSaved = True
         return foundlist
 
+    def _init_dict(self, transTable):
+        data_dict = {}
+        for m in transTable.values():
+            data_dict[m] = ''
+        return data_dict
+
     def lookup_dasoertliche(self, number):
+        transTable = {'pc': 'pc', 'na': 'na', 'ci': 'ci', 'st': 'st',
+                      'hn': 'hn', 'ph': 'ph', 'mph': 'mph', 'recuid': 'recuid'}
         url = 'https://www.dasoertliche.de/Controller?form_name=search_inv&ph={}'.format(
             number)
         headers = {
@@ -145,27 +149,41 @@ class FritzCalls():
         response = self.http.request('GET', url, headers=headers)
         content = response.data.decode("utf-8", "ignore") \
             .replace('\t', '').replace('\n', '').replace('\r', '').replace('&nbsp;', ' ')
-        soup = BeautifulSoup(content, 'html.parser')
-        string = str(soup.find('script', type='application/ld+json'))
-        m = re.search('\"@type\":\"Person\",\"name\":\"(.*?)\"', string)
-        if m:
-            name = m.group(1).replace(' & ', ' u. ')
-            logger.info('%s = dasoertliche(%s)', number, name)
-            return name
-        m = re.search('\"@type\":\"LocalBusiness\",\"name\":\"(.*?)\"', string)
-        if m:
-            name = m.group(1).replace(' & ', ' u. ')
-            logger.info('%s = dasoertliche(%s)', number, name)
-            return name
+        try:
+            handlerData = literal_eval(
+                (re.search('handlerData\s*=\s*(.*?);', content).group(1)).replace("null", "None"))
+            # item list matching to address list
+            itemList = re.search(
+                'var item = {(.*?)};', content).group(1).split(',')
+            for m in range(len(handlerData)):
+                data_dict = self._init_dict(transTable)
+                for singleItem in itemList:
+                    item = singleItem.split(':', 1)
+                    if item[0].strip() in transTable:
+                        i_id = transTable[item[0].strip()]
+                        if i_id == 'ph':
+                            phone = eval(item[1]).replace('(', '').replace(
+                                ')', '-').replace(' ', '-', 1).replace(' ', '')
+                            if phone[:3] in ('015', '016', '017'):
+                                data_dict['mph'] = phone
+                            else:
+                                data_dict['ph'] = phone
+                        else:
+                            data_dict[i_id] = eval(item[1])
+            return data_dict['na']
+        except Exception:
+            logger.error("Telefonbuchsuche DasOertliche error", exc_info=True)
 
 
 class MyFritzPhonebook(object):
 
     def __init__(self, connection, name):
         self.connection = connection
+        self.http = urllib3.PoolManager()
         if name and isinstance(name, list):
             name = name[0]
         self.bookNumber = None
+        self.phonebookEntries = None
         for book_id in FritzPhonebook(self.connection).phonebook_ids:
             book = FritzPhonebook(self.connection).phonebook_info(book_id)
             if book['name'] == name:
@@ -176,13 +194,12 @@ class MyFritzPhonebook(object):
             sys.exit(1)
 
     def get_phonebook(self):
-        self.http = urllib3.PoolManager()
         response = self.http.request('GET', self.connection.call_action(
             'X_AVM-DE_OnTel', 'GetPhonebook', NewPhonebookID=self.bookNumber)['NewPhonebookURL'])
         self.phonebookEntries = fromstring(
             re.sub("!-- idx:(\d+) --", lambda m: "idx>"+m.group(1)+"</idx", response.data.decode("utf-8")))
 
-    def get_entry(self, name=None, number=None, uid=None, id=None):
+    def get_entry(self, name=None, number=None, uid=None, contact_id=None):
         for contact in self.phonebookEntries.iter('contact'):
             if name is not None:
                 for realName in contact.iter('realName'):
@@ -199,11 +216,11 @@ class MyFritzPhonebook(object):
                     if uniqueid.text == uid:
                         for idx in contact.iter('idx'):
                             return {'contact_id': idx.text, 'contact': contact}
-            elif id is not None:
+            elif contact_id is not None:
                 phone_entry = fromstring(self.connection.call_action(
                     'X_AVM-DE_OnTel', 'GetPhonebookEntry', NewPhonebookID=self.bookNumber,
-                    NewPhonebookEntryID=id)['NewPhonebookEntryData'])
-                return {'contact_id': id, 'contact': phone_entry}
+                    NewPhonebookEntryID=contact_id)['NewPhonebookEntryData'])
+                return {'contact_id': contact_id, 'contact': phone_entry}
 
     def add_entry_list(self, entry_list):
         if entry_list:
@@ -215,7 +232,8 @@ class MyFritzPhonebook(object):
                     self.add_entry(number, name)
 
     def append_entry(self, entry, phone_number):
-        phonebookEntry = self.get_entry(id=entry['contact_id'])['contact']
+        phonebookEntry = self.get_entry(
+            contact_id=entry['contact_id'])['contact']
         for realName in phonebookEntry.iter('realName'):
             realName.text = realName.text.replace('& ', '&#38; ')
         newnumber = None
@@ -284,7 +302,6 @@ class FritzBackwardSearch(object):
 #        self.__init_logging__()
         global args
         args = self.__get_cli_arguments__()
-        self.__read_ONKz__()
         self.connection = FritzConnection(
             address=args.address,
             port=args.port,
@@ -323,27 +340,6 @@ class FritzBackwardSearch(object):
             preferences[name] = value
         logger.debug(preferences)
         return preferences
-
-    def __read_ONKz__(self):  # read area code numbers
-        self.onkz = []
-        fname = os.path.join(
-            os.path.dirname(__file__),
-            'data',
-            args.areacodefile,
-        )
-        if os.path.isfile(fname):
-            with open(fname, encoding='utf-8', mode='r') as csvfile:
-                for row in csvfile:
-                    self.onkz.append(row.strip().split('\t'))
-        else:
-            logger.error('%s not found', fname)
-
-    def get_ONKz_length(self, phone_number):
-        for row in self.onkz:
-            if phone_number[0:len(row[0])] == row[0]:
-                return len(row[0])
-        # return 4 as default length if not found (e.g. 0800)
-        return 4
 
     # ---------------------------------------------------------
     # cli-section:

@@ -34,7 +34,7 @@ setuptools.setup(
     long_description=long_description,
     keywords='fritz fritzconnection',
     zip_safe=False,
-    install_requires=["fritzconnection", "urllib3", "xmltodict", "Beautifulsoup4",
+    install_requires=["fritzconnection", "urllib3", "xmltodict",
                       "certifi", "SpeechRecognition"] + get_install_requires(),
     setup_requires=['setuptools-git-versioning<1.8.0'],
     python_requires='>=3',
