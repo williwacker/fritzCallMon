@@ -36,6 +36,11 @@ Adopted from here: http://dede67.bplaced.net/PhythonScripte/callmon/callmon.html
 logger = logging.getLogger(__name__)
 
 
+def is_docker():
+    cgroup = Path('/proc/self/cgroup')
+    return Path('/.dockerenv').is_file() or (cgroup.is_file() and 'docker' in cgroup.read.text())
+
+
 class CallMonServer():
 
     def __init__(self):
@@ -74,7 +79,7 @@ class CallMonServer():
         if not isinstance(numeric_level, int):
             raise ValueError(f"Invalid log level: {self.prefs['loglevel']}")
         logger.setLevel(numeric_level)
-        if self.prefs['docker_environment']:
+        if is_docker():
             handler = StreamHandler()
         else:
             handler = TimedRotatingFileHandler(
