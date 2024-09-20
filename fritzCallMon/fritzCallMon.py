@@ -6,8 +6,9 @@ import socket
 import sys
 import threading
 import time
-from logging.handlers import TimedRotatingFileHandler
 from logging import StreamHandler
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from queue import Queue
 
 from fritzBackwardSearch import FritzBackwardSearch
@@ -183,7 +184,7 @@ class CallMonServer():
         while True:
             time.sleep(0.01)
             msgtxt = self.fb_queue.get()
-            if not (msgtxt == "CONNECTION_LOST" or msgtxt == "REFRESH"):
+            if not (msgtxt in ("CONNECTION_LOST", "REFRESH")):
                 msg = msgtxt.decode().split(';')
                 if msg[1] == "RING":
                     self.FBS.runSearch(s=msg[3])
@@ -200,7 +201,7 @@ class CallMonServer():
             time.sleep(0.01)
             msgtxt = self.fb_absense_queue.get()
             logger.info(msgtxt)
-            if not (msgtxt == "CONNECTION_LOST" or msgtxt == "REFRESH"):
+            if not (msgtxt in ("CONNECTION_LOST", "REFRESH")):
                 # RING;ID;CALLER;CALLED;
                 # CONNECT;ID;PORT;CALLER;
                 # DISCONNECT;ID;SECONDS;

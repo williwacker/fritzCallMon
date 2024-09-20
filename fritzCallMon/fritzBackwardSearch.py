@@ -40,6 +40,9 @@ class FritzCalls():
     def get_unknown(self):  # get list of callers not listed with their name
         self.unknownCallers = {}
         for i in range(len(self.calldict)-1, -1, -1):
+            if self.calldict[i].Id is None:
+                del self.calldict[i]
+                continue                
             if self.calldict[i].Name and not self.calldict[i].Name.isdigit() and not '(' in self.calldict[i].Name:
                 del self.calldict[i]
                 continue
@@ -81,11 +84,15 @@ class FritzCalls():
                 return len(row[0])
         # return 4 as default length if not found (e.g. 0800)
         return 4
+    
+    def only_numerics(self, seq):
+        seq_type= type(seq)
+        return seq_type().join(filter(seq_type.isdigit, seq))
 
     def get_names(self, nameNotFoundList):
         foundlist = {}
         for call in self.calldict:
-            number = call.Name
+            number = self.only_numerics(call.Name)
             origNumber = number
             # remove international numbers
             if number.startswith("00"):
@@ -108,8 +115,8 @@ class FritzCalls():
             name = None
             numberLogged = False
             numberSaved = False
-            l_onkz = FritzBackwardSearch().get_ONKz_length(fullNumber)
-            while (name == None and len(fullNumber) > (l_onkz + 3)):
+            l_onkz = self.get_ONKz_length(fullNumber)
+            while (name is None and len(fullNumber) > (l_onkz + 3)):
                 name = self.lookup_dasoertliche(fullNumber)
                 if not name:
                     logger.info('%s not found', fullNumber)
@@ -149,6 +156,8 @@ class FritzCalls():
         response = self.http.request('GET', url, headers=headers)
         content = response.data.decode("utf-8", "ignore") \
             .replace('\t', '').replace('\n', '').replace('\r', '').replace('&nbsp;', ' ')
+        if content.find('keine Treffer finden') > -1:
+            return
         try:
             handlerData = literal_eval(
                 (re.search('handlerData\s*=\s*(.*?);', content).group(1)).replace("null", "None"))
