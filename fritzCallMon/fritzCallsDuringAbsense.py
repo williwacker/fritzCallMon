@@ -13,19 +13,33 @@ from fritzconnection.lib.fritzcall import FritzCall
 
 logger = logging.getLogger(__name__)
 
-
 class FritzCallsDuringAbsense():
 
 	def __init__(self, connection, prefs):
 		self.prefs = prefs
-		self.areaCode = (connection.call_action('X_VoIP', 'GetVoIPCommonAreaCode'))['NewVoIPAreaCode']
+		self.__init_logging__()		
+		self.areaCode = (connection.call_action(
+			'X_VoIP', 'GetVoIPCommonAreaCode'))['NewVoIPAreaCode']
 		self.http = urllib3.PoolManager()
 		self.callURLList = connection.call_action('X_AVM-DE_OnTel', 'GetCallList')
 		entries = re.search("sid=(.*)$", self.callURLList['NewCallListURL'])
 		self.sid = entries.group(0)
 		self.FC = FritzCall(fc=connection)
+
 		self.unresolved_list = []
 
+	def __init_logging__(self):
+		numeric_level = getattr(logging, self.prefs['loglevel'].upper(), None)
+		if not isinstance(numeric_level, int):
+			raise ValueError('Invalid log level: %s' % self.prefs['loglevel'])
+		logging.basicConfig(
+			filename=self.prefs['logfile'],
+			level=numeric_level,
+			format=(
+				'%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(message)s'),
+			datefmt='%Y-%m-%d %H:%M:%S',
+		)
+		
 	def get_sid(self):
 		return self.sid
 
@@ -58,7 +72,6 @@ class FritzCallsDuringAbsense():
 		phone_message = self.get_phone_message(call)
 		logger.info("phone_message=%s", phone_message)
 		self.pushover(self.get_message(call, phone_message))
-		return
 
 	def get_phone_message(self, call):
 		phone_message = ""
@@ -73,10 +86,11 @@ class FritzCallsDuringAbsense():
 					'GET',
 					f'{self.prefs["fritz_ip_address"]}/lua/photo.lua?{self.get_sid()}&myabfile={dlpath}'
 				)
-				wave = open(os.path.join(self.prefs['phone_msg_dir'], f'{dlfile[-1]}.wav'), 'wb')
-				wave.write(response.data)
-				wave.close()
-				phone_message = self.speech_to_text(wave.name)
+				if not os.path.exists(self.prefs['phone_msg_dir']):
+					os.makedirs(self.prefs['phone_msg_dir'])
+				with open(os.path.join(self.prefs['phone_msg_dir'], f'{dlfile[-1]}.wav'), 'wb') as wave:
+					wave.write(response.data)
+					phone_message = self.speech_to_text(wave.name)
 			except Exception as e:
 				logger.error('Error in get_phone_message %s', e)
 				self.pushover(f'Error in get_phone_message {e}')

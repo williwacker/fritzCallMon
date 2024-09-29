@@ -42,7 +42,7 @@ class FritzCalls():
         for i in range(len(self.calldict)-1, -1, -1):
             if self.calldict[i].Id is None:
                 del self.calldict[i]
-                continue                
+                continue        
             if self.calldict[i].Name and not self.calldict[i].Name.isdigit() and not '(' in self.calldict[i].Name:
                 del self.calldict[i]
                 continue
@@ -308,7 +308,7 @@ class FritzBackwardSearch(object):
         else:
             self.prefs = prefs
 
-#        self.__init_logging__()
+        self.__init_logging__()
         global args
         args = self.__get_cli_arguments__()
         self.connection = FritzConnection(
@@ -458,5 +458,5 @@ class FritzBackwardSearch(object):
 if __name__ == '__main__':
     FBS = FritzBackwardSearch()
 #   to search for a number specify it in here:
-# FBS.runSearch(s=('06131177282 (06131170)', ))
+#    FBS.runSearch(s=('06359911', ))
     FBS.runSearch()
