@@ -76,7 +76,7 @@ class FritzCallsDuringAbsense():
 	def get_phone_message(self, call):
 		phone_message = ""
 		# if it is a phone message
-		if hasattr(call, 'Path'):
+		if hasattr(call, 'Path') and call.Path:
 			try:
 				# build download link for phone message
 				entries = re.search("(path=)(.*)", call.Path)
