@@ -10,36 +10,35 @@ import urllib
 import speech_recognition as sr
 import urllib3
 from fritzconnection.lib.fritzcall import FritzCall
+from logs import get_logger
+from prefs import read_configuration
 
 logger = logging.getLogger(__name__)
 
+
 class FritzCallsDuringAbsense():
 
-	def __init__(self, connection, prefs):
-		self.prefs = prefs
-		self.__init_logging__()		
-		self.areaCode = (connection.call_action(
+	def __init__(self, connection):
+		self.logger = None
+		self.prefs = read_configuration()
+		self.connection = connection
+		self.unresolved_list = []
+		self.run()
+		super().__init__()
+
+	def run(self):
+		self.logger = get_logger()
+		self.logger.info('%s has been started', __class__.__name__)
+
+		self.areaCode = (self.connection.call_action(
 			'X_VoIP', 'GetVoIPCommonAreaCode'))['NewVoIPAreaCode']
 		self.http = urllib3.PoolManager()
-		self.callURLList = connection.call_action('X_AVM-DE_OnTel', 'GetCallList')
+		self.callURLList = self.connection.call_action(
+			'X_AVM-DE_OnTel', 'GetCallList')
 		entries = re.search("sid=(.*)$", self.callURLList['NewCallListURL'])
 		self.sid = entries.group(0)
-		self.FC = FritzCall(fc=connection)
+		self.FC = FritzCall(fc=self.connection)
 
-		self.unresolved_list = []
-
-	def __init_logging__(self):
-		numeric_level = getattr(logging, self.prefs['loglevel'].upper(), None)
-		if not isinstance(numeric_level, int):
-			raise ValueError('Invalid log level: %s' % self.prefs['loglevel'])
-		logging.basicConfig(
-			filename=self.prefs['logfile'],
-			level=numeric_level,
-			format=(
-				'%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(message)s'),
-			datefmt='%Y-%m-%d %H:%M:%S',
-		)
-		
 	def get_sid(self):
 		return self.sid
 
@@ -53,9 +52,9 @@ class FritzCallsDuringAbsense():
 
 	def get_unresolved(self):
 		for caller in self.unresolved_list:
-#			calls = [
-#				call for call in self.FC.get_calls(update=True, days=5)
-#				if call.Type == "1" and call.Port == "40" and call.Path and call.Caller in caller]			
+			# calls = [
+			# call for call in self.FC.get_calls(update=True, days=5)
+			# if call.Type == "1" and call.Port == "40" and call.Path and call.Caller in caller]
 			calls = [
 				call for call in self.FC.get_calls(update=True, days=5)
 				if call.Type == "1" and call.Port == "40" and call.Caller in caller]
@@ -104,11 +103,11 @@ class FritzCallsDuringAbsense():
 				try:
 					conn = http.client.HTTPSConnection("api.pushover.net:443")
 					conn.request("POST", "/1/messages.json",
-								urllib.parse.urlencode({
-									"token": self.prefs['pushover_token'],
-									"user": self.prefs['pushover_userkey'],
-									"message": message,
-								}), {"Content-type": "application/x-www-form-urlencoded"})
+								 urllib.parse.urlencode({
+									 "token": self.prefs['pushover_token'],
+									 "user": self.prefs['pushover_userkey'],
+									 "message": message,
+								 }), {"Content-type": "application/x-www-form-urlencoded"})
 					conn.getresponse()
 					retry = False
 				except Exception:
@@ -124,7 +123,7 @@ class FritzCallsDuringAbsense():
 		)
 		if phone_message:
 			text += ' /Message: {}'.format(
-				phone_message,
+					phone_message,
 			)
 		return text
 
@@ -147,4 +146,3 @@ class FritzCallsDuringAbsense():
 				retry_count -= 1
 				logger.error('Error in speech_to_text %s', e)
 				self.pushover(f'Error in speech_to_text {e}')
-

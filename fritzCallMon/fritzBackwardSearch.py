@@ -1,5 +1,4 @@
 import argparse
-import configparser
 import copy
 import datetime
 import html.parser
@@ -15,6 +14,8 @@ import urllib3
 from fritzconnection import FritzConnection
 from fritzconnection.lib.fritzcall import Call, FritzCall
 from fritzconnection.lib.fritzphonebook import FritzPhonebook
+from prefs import read_configuration
+from logs import get_logger
 
 logger = logging.getLogger(__name__)
 
@@ -27,22 +28,33 @@ args.logfile = ''
 class FritzCalls():
 
     def __init__(self, connection, nameNotFoundList):
+        self.logger = None
+        self.connection = connection
+        self.nameNotFoundList = nameNotFoundList
+        self.prefs = read_configuration()
+        self.unknownCallers = {}
+        self.onkz = []
+
+        self.run()
+        super().__init__()
+
+    def run(self):
+        self.logger = get_logger()
+        self.logger.info('%s has been started', __class__.__name__)
+
         self.http = urllib3.PoolManager(
             cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
-        self.connection = connection
-        self.areaCode = (connection.call_action(
+        self.areaCode = (self.connection.call_action(
             'X_VoIP', 'GetVoIPCommonAreaCode'))['NewVoIPAreaCode']
-        self.nameNotFoundList = nameNotFoundList
-        self.calldict = FritzCall(fc=connection).get_calls()
+        self.calldict = FritzCall(fc=self.connection).get_calls()
         self.get_unknown()
         self.__read_ONKz__()
 
     def get_unknown(self):  # get list of callers not listed with their name
-        self.unknownCallers = {}
         for i in range(len(self.calldict)-1, -1, -1):
             if self.calldict[i].Id is None:
                 del self.calldict[i]
-                continue        
+                continue
             if self.calldict[i].Name and not self.calldict[i].Name.isdigit() and not '(' in self.calldict[i].Name:
                 del self.calldict[i]
                 continue
@@ -65,7 +77,6 @@ class FritzCalls():
                 del self.calldict[i]
 
     def __read_ONKz__(self):  # read area code numbers
-        self.onkz = []
         fname = os.path.join(
             os.path.dirname(__file__),
             'data',
@@ -84,9 +95,9 @@ class FritzCalls():
                 return len(row[0])
         # return 4 as default length if not found (e.g. 0800)
         return 4
-    
+
     def only_numerics(self, seq):
-        seq_type= type(seq)
+        seq_type = type(seq)
         return seq_type().join(filter(seq_type.isdigit, seq))
 
     def get_names(self, nameNotFoundList):
@@ -148,7 +159,7 @@ class FritzCalls():
 
     def lookup_dasoertliche(self, number):
         transTable = {'pc': 'pc', 'na': 'na', 'ci': 'ci', 'st': 'st',
-                      'hn': 'hn', 'ph': 'ph', 'mph': 'mph', 'recuid': 'recuid'}
+                                  'hn': 'hn', 'ph': 'ph', 'mph': 'mph', 'recuid': 'recuid'}
         url = 'https://www.dasoertliche.de/Controller?form_name=search_inv&ph={}'.format(
             number)
         headers = {
@@ -184,10 +195,19 @@ class FritzCalls():
             logger.error("Telefonbuchsuche DasOertliche error", exc_info=True)
 
 
-class MyFritzPhonebook(object):
+class MyFritzPhonebook():
 
     def __init__(self, connection, name):
+        self.logger = None
+        self.prefs = read_configuration()
         self.connection = connection
+        self.run(name)
+        super().__init__()
+
+    def run(self, name):
+        self.logger = get_logger()
+        self.logger.info('%s has been started', __class__.__name__)
+
         self.http = urllib3.PoolManager()
         if name and isinstance(name, list):
             name = name[0]
@@ -260,9 +280,9 @@ class MyFritzPhonebook(object):
                 'NewPhonebookID': self.bookNumber,
                 'NewPhonebookEntryID': entry['contact_id'],
                 'NewPhonebookEntryData':
-                '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
-                tostring(phonebookEntry).decode("utf-8") +
-                '</Envelope>'
+                    '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
+                    tostring(phonebookEntry).decode("utf-8") +
+                    '</Envelope>'
             }
             self.connection.call_action(
                 'X_AVM-DE_OnTel', 'SetPhonebookEntry', arguments=arg)
@@ -282,33 +302,28 @@ class MyFritzPhonebook(object):
             'NewPhonebookID': self.bookNumber,
             'NewPhonebookEntryID': '',
             'NewPhonebookEntryData':
-            '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
-            tostring(phonebookEntry).decode("utf-8") +
-            '</Envelope>'
+                '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
+                tostring(phonebookEntry).decode("utf-8") +
+                '</Envelope>'
         }
         self.connection.call_action(
             'X_AVM-DE_OnTel:1', 'SetPhonebookEntry', arguments=arg)
         self.get_phonebook()
 
 
-class FritzBackwardSearch(object):
+class FritzBackwardSearch():
 
-    def __init__(self, prefs=None):
-        if not prefs:
-            fname = os.path.join(
-                os.path.dirname(__file__),
-                'config',
-                'fritzBackwardSearch.ini',
-            )
-            if os.path.isfile(fname):
-                self.prefs = self.__read_configuration__(fname)
-            else:
-                logger.error('%s not found', fname)
-                sys.exit(1)
-        else:
-            self.prefs = prefs
+    def __init__(self):
+        self.logger = None
+        self.prefs = read_configuration()
+        self.nameNotFoundList = []
+        self.run()
+        super().__init__()
 
-        self.__init_logging__()
+    def run(self):
+        self.logger = get_logger()
+        self.logger.info('%s has been started', __class__.__name__)
+
         global args
         args = self.__get_cli_arguments__()
         self.connection = FritzConnection(
@@ -327,28 +342,6 @@ class FritzBackwardSearch(object):
         except:
             self.nameNotFoundList = open(
                 self.notfoundfile, encoding='utf-8', mode='w+').read().splitlines()
-
-    def __init_logging__(self):
-        numeric_level = getattr(logging, self.prefs['loglevel'].upper(), None)
-        if not isinstance(numeric_level, int):
-            raise ValueError('Invalid log level: %s' % self.prefs['loglevel'])
-        logging.basicConfig(
-            filename=self.prefs['logfile'],
-            level=numeric_level,
-            format=(
-                '%(asctime)s %(levelname)s [%(name)s:%(lineno)s] %(message)s'),
-            datefmt='%Y-%m-%d %H:%M:%S',
-        )
-
-    # read configuration from the configuration file and prepare a preferences dict
-    def __read_configuration__(self, filename):
-        cfg = configparser.ConfigParser()
-        cfg.read(filename)
-        preferences = {}
-        for name, value in cfg.items('DEFAULT'):
-            preferences[name] = value
-        logger.debug(preferences)
-        return preferences
 
     # ---------------------------------------------------------
     # cli-section:
@@ -405,7 +398,7 @@ class FritzBackwardSearch(object):
         if args.password and isinstance(args.password, list):
             args.password = args.password[0].rstrip()
         calls = FritzCalls(
-            self.connection, nameNotFoundList=self.nameNotFoundList)
+            self.connection, self.nameNotFoundList)
         nameList = ''
         searchnumber = []
         if args.searchnumber:
