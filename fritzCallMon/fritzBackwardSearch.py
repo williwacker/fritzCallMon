@@ -97,8 +97,10 @@ class FritzCalls():
         return 4
 
     def only_numerics(self, seq):
-        seq_type = type(seq)
-        return seq_type().join(filter(seq_type.isdigit, seq))
+        if seq:
+            seq_type = type(seq)
+            return seq_type().join(filter(seq_type.isdigit, seq))
+        return ''
 
     def get_names(self, nameNotFoundList):
         foundlist = {}
@@ -201,6 +203,8 @@ class MyFritzPhonebook():
         self.logger = None
         self.prefs = read_configuration()
         self.connection = connection
+        self.bookNumber = None
+        self.phonebookEntries = None
         self.run(name)
         super().__init__()
 
@@ -211,8 +215,6 @@ class MyFritzPhonebook():
         self.http = urllib3.PoolManager()
         if name and isinstance(name, list):
             name = name[0]
-        self.bookNumber = None
-        self.phonebookEntries = None
         for book_id in FritzPhonebook(self.connection).phonebook_ids:
             book = FritzPhonebook(self.connection).phonebook_info(book_id)
             if book['name'] == name:
