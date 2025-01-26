@@ -60,7 +60,7 @@ class FritzCallsDuringAbsense():
 				if call.Type == "1" and call.Port == "40" and call.Caller in caller]
 			calls += [
 				call for call in self.FC.get_missed_calls(update=True, days=3)
-				if call.Type == "2" and call.Caller in caller]
+				if call.Type == "2" and call.Caller and call.Caller in caller]
 			calls = sorted(calls, key=lambda x: x.Date, reverse=True)
 			for call in calls:
 				self.process_notification(call)
