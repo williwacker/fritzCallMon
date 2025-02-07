@@ -1,21 +1,19 @@
+# -*- coding: utf-8 -*-
+
 import argparse
-import copy
 import datetime
-import html.parser
 import logging
 import os
 import re
 import sys
 from ast import literal_eval
-from xml.etree.ElementTree import fromstring, tostring
-
 import certifi
 import urllib3
+from fritzPhonebook import MyFritzPhonebook
 from fritzconnection import FritzConnection
 from fritzconnection.lib.fritzcall import Call, FritzCall
-from fritzconnection.lib.fritzphonebook import FritzPhonebook
-from prefs import read_configuration
 from logs import get_logger
+from prefs import read_configuration
 
 logger = logging.getLogger(__name__)
 
@@ -197,122 +195,6 @@ class FritzCalls():
             logger.error("Telefonbuchsuche DasOertliche error", exc_info=True)
 
 
-class MyFritzPhonebook():
-
-    def __init__(self, connection, name):
-        self.logger = None
-        self.prefs = read_configuration()
-        self.connection = connection
-        self.bookNumber = None
-        self.phonebookEntries = None
-        self.run(name)
-        super().__init__()
-
-    def run(self, name):
-        self.logger = get_logger()
-        self.logger.info('%s has been started', __class__.__name__)
-
-        self.http = urllib3.PoolManager()
-        if name and isinstance(name, list):
-            name = name[0]
-        for book_id in FritzPhonebook(self.connection).phonebook_ids:
-            book = FritzPhonebook(self.connection).phonebook_info(book_id)
-            if book['name'] == name:
-                self.bookNumber = book_id
-                break
-        if not self.bookNumber:
-            logger.error('Phonebook: %s not found !', name)
-            sys.exit(1)
-
-    def get_phonebook(self):
-        response = self.http.request('GET', self.connection.call_action(
-            'X_AVM-DE_OnTel', 'GetPhonebook', NewPhonebookID=self.bookNumber)['NewPhonebookURL'])
-        self.phonebookEntries = fromstring(
-            re.sub("!-- idx:(\d+) --", lambda m: "idx>"+m.group(1)+"</idx", response.data.decode("utf-8")))
-
-    def get_entry(self, name=None, number=None, uid=None, contact_id=None):
-        for contact in self.phonebookEntries.iter('contact'):
-            if name is not None:
-                for realName in contact.iter('realName'):
-                    if html.unescape(realName.text) == html.unescape(name):
-                        for idx in contact.iter('idx'):
-                            return {'contact_id': idx.text, 'contact': contact}
-            elif number is not None:
-                for realNumber in contact.iter('number'):
-                    if realNumber.text == number:
-                        for idx in contact.iter('idx'):
-                            return {'contact_id': idx.text, 'contact': contact}
-            elif uid is not None:
-                for uniqueid in contact.iter('uniqueid'):
-                    if uniqueid.text == uid:
-                        for idx in contact.iter('idx'):
-                            return {'contact_id': idx.text, 'contact': contact}
-            elif contact_id is not None:
-                phone_entry = fromstring(self.connection.call_action(
-                    'X_AVM-DE_OnTel', 'GetPhonebookEntry', NewPhonebookID=self.bookNumber,
-                    NewPhonebookEntryID=contact_id)['NewPhonebookEntryData'])
-                return {'contact_id': contact_id, 'contact': phone_entry}
-
-    def add_entry_list(self, entry_list):
-        if entry_list:
-            for number, name in entry_list.items():
-                entry = self.get_entry(name=name)
-                if entry:
-                    self.append_entry(entry, number)
-                else:
-                    self.add_entry(number, name)
-
-    def append_entry(self, entry, phone_number):
-        phonebookEntry = self.get_entry(
-            contact_id=entry['contact_id'])['contact']
-        for realName in phonebookEntry.iter('realName'):
-            realName.text = realName.text.replace('& ', '&#38; ')
-        newnumber = None
-        for number in phonebookEntry.iter('number'):
-            if 'quickdial' in number.attrib:
-                del number.attrib['quickdial']
-            newnumber = copy.deepcopy(number)
-            newnumber.text = phone_number
-            newnumber.set('type', 'home')
-            newnumber.set('prio', '1')
-        if not newnumber is None:
-            for telephony in phonebookEntry.iter('telephony'):
-                telephony.append(newnumber)
-            arg = {
-                'NewPhonebookID': self.bookNumber,
-                'NewPhonebookEntryID': entry['contact_id'],
-                'NewPhonebookEntryData':
-                    '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
-                    tostring(phonebookEntry).decode("utf-8") +
-                    '</Envelope>'
-            }
-            self.connection.call_action(
-                'X_AVM-DE_OnTel', 'SetPhonebookEntry', arguments=arg)
-            self.get_phonebook()
-
-    def add_entry(self, phone_number, name):
-        phonebookEntry = fromstring(
-            '<contact><person><realName></realName></person><telephony><number></number></telephony></contact>')
-        for number in phonebookEntry.iter('number'):
-            number.text = phone_number
-            number.set('type', 'home')
-            number.set('prio', '1')
-            number.set('id', '0')
-        for realName in phonebookEntry.iter('realName'):
-            realName.text = html.unescape(name)
-        arg = {
-            'NewPhonebookID': self.bookNumber,
-            'NewPhonebookEntryID': '',
-            'NewPhonebookEntryData':
-                '<Envelope encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://www.w3.org/2003/05/soap-envelope/">' +
-                tostring(phonebookEntry).decode("utf-8") +
-                '</Envelope>'
-        }
-        self.connection.call_action(
-            'X_AVM-DE_OnTel:1', 'SetPhonebookEntry', arguments=arg)
-        self.get_phonebook()
-
-
 class FritzBackwardSearch():
 
     def __init__(self):
@@ -339,11 +221,11 @@ class FritzBackwardSearch():
         if args.notfoundfile and isinstance(args.notfoundfile, list):
             self.notfoundfile = args.notfoundfile[0]
         try:
-            self.nameNotFoundList = open(
-                self.notfoundfile, encoding='utf-8', mode='r').read().splitlines()
+            with open(self.notfoundfile, encoding='utf-8', mode='r') as file:
+                self.nameNotFoundList = file.read().splitlines()
         except:
-            self.nameNotFoundList = open(
-                self.notfoundfile, encoding='utf-8', mode='w+').read().splitlines()
+            with open(self.notfoundfile, encoding='utf-8', mode='w+') as file:
+                self.nameNotFoundList = file.read().splitlines()
 
     # ---------------------------------------------------------
     # cli-section:
