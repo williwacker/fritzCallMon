@@ -1,8 +1,13 @@
 import logging
 import os
+import sys
 from logging import StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+
+# import root directory into python module search path
+sys.path.insert(1, os.getcwd())  # noqa
+
 from prefs import read_configuration
 
 
@@ -16,7 +21,7 @@ def get_logger():
 
     if logger.handlers:
         return logger
-    
+
     prefs = read_configuration()
 
     logfile = os.path.abspath(prefs['logfile'])

@@ -4,18 +4,25 @@ import argparse
 import copy
 import html.parser
 import logging
+import os
 import re
 import sys
 from xml.etree.ElementTree import fromstring, tostring
 
+import certifi
 import urllib3
+
+# import root directory into python module search path
+sys.path.insert(1, os.getcwd())  # noqa
+
+from fritzconnection import FritzConnection
 from fritzconnection.lib.fritzphonebook import FritzPhonebook
+
 from logs import get_logger
 from prefs import read_configuration
 
 logger = logging.getLogger(__name__)
 
-__version__ = '0.3.3'
 
 args = argparse.Namespace()
 args.logfile = ''
@@ -23,11 +30,21 @@ args.logfile = ''
 
 class MyFritzPhonebook():
 
-    def __init__(self, connection, name):
+    def __init__(self, connection=None, name=None):
         self.logger = None
         self.prefs = read_configuration()
-        self.connection = connection
-        self.phonebook = FritzPhonebook(self.connection)
+        if connection:
+            self.connection = connection
+        else:
+            self.connection = FritzConnection(
+                address=self.prefs['fritz_ip_address'],
+                port=self.prefs['fritz_tcp_port'],
+                user=self.prefs['fritz_username'],
+                password=self.prefs['password']
+            )
+        if not name:
+            name = self.prefs['fritz_phone_book']
+        self.fritzphonebook = FritzPhonebook(self.connection)
         self.bookNumber = None
         self.phonebookEntries = None
         self.run(name)
@@ -37,20 +54,22 @@ class MyFritzPhonebook():
         self.logger = get_logger()
         self.logger.info('%s has been started', __class__.__name__)
 
-        self.http = urllib3.PoolManager()
         if name and isinstance(name, list):
             name = name[0]
-        for book_id in self.phonebook.phonebook_ids:
-            phonebook_info = self.phonebook.phonebook_info(book_id)
+        for book_id in self.fritzphonebook.phonebook_ids:
+            phonebook_info = self.fritzphonebook.phonebook_info(book_id)
             if phonebook_info['name'] == name:
                 self.bookNumber = book_id
                 break
         if not self.bookNumber:
             logger.error('Phonebook: %s not found !', name)
             sys.exit(1)
+        self.get_phonebook()
 
     def get_phonebook(self):
-        response = self.http.request('GET', self.connection.call_action(
+        http = urllib3.PoolManager(
+            cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
+        response = http.request('GET', self.connection.call_action(
             'X_AVM-DE_OnTel', 'GetPhonebook', NewPhonebookID=self.bookNumber)['NewPhonebookURL'])
         self.phonebookEntries = fromstring(
             re.sub("!-- idx:(\d+) --", lambda m: "idx>"+m.group(1)+"</idx", response.data.decode("utf-8")))
@@ -83,17 +102,21 @@ class MyFritzPhonebook():
             for number, name in entry_list.items():
                 entry = self.get_entry(name=name)
                 if entry:
-                    self.append_entry(entry, number)
-                    self.logger.info('%s %s has been appended', name, number)
+                    if self.append_entry(entry, number):
+                        self.logger.info(
+                            '%s %s has been appended', name, number)
+                    else:
+                        self.logger.info('%s %s already defined', name, number)
                 else:
-                    self.add_entry(number, name)
-                    self.logger.info('%s %s has been added', name, number)
+                    if self.add_entry(number, name.replace('&', '&amp;')):
+                        self.logger.info('%s %s has been added', name, number)
+                        self.get_phonebook()
 
     def append_entry(self, entry, phone_number):
         phonebookEntry = self.get_entry(
             contact_id=entry['contact_id'])['contact']
         for realName in phonebookEntry.iter('realName'):
-            realName.text = realName.text.replace('& ', '&#38; ')
+            realName.text = realName.text
         newnumber = None
         for number in phonebookEntry.iter('number'):
             if 'quickdial' in number.attrib:
@@ -103,20 +126,29 @@ class MyFritzPhonebook():
             newnumber.set('type', 'home')
             newnumber.set('prio', '1')
         if not newnumber is None:
+            newnumberexists = False
             for telephony in phonebookEntry.iter('telephony'):
+                for item in telephony.itertext():
+                    if item == phone_number:
+                        newnumberexists = True
+                        break
+            if not newnumberexists:
                 telephony.append(newnumber)
-            arg = {
-                'NewPhonebookID': self.bookNumber,
-                'NewPhonebookEntryID': entry['contact_id'],
-                'NewPhonebookEntryData':
-                    '<?xml version="1.0" encoding="utf-8"?>' +
-                    '<Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" ' +
-                    's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
-                    tostring(phonebookEntry).decode("utf-8") +
-                    '</Envelope>'
-            }
-            self.connection.call_action(
-                'X_AVM-DE_OnTel', 'SetPhonebookEntry', arguments=arg)
+                arg = {
+                    'NewPhonebookID': self.bookNumber,
+                    'NewPhonebookEntryID': entry['contact_id'],
+                    'NewPhonebookEntryData':
+                        '<?xml version="1.0" encoding="utf-8"?>' +
+                        '<Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" ' +
+                        's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
+                        tostring(phonebookEntry).decode("utf-8") +
+                        '</Envelope>'
+                }
+                self.connection.call_action(
+                    'X_AVM-DE_OnTel', 'SetPhonebookEntry', arguments=arg)
+                return True
+
+        return False
 
     def add_entry(self, phone_number, name):
         arg = {
@@ -135,10 +167,10 @@ class MyFritzPhonebook():
 
         self.connection.call_action(
             'X_AVM-DE_OnTel:1', 'SetPhonebookEntry', arguments=arg)
+        return True
 
 
-# if __name__ == '__main__':
-#    FPB = FritzPhonebook()
-#   to search for a number specify it in here:
-#    FPB.runSearch(s=('06322955681', ))
-#    FBS.runSearch()
+if __name__ == '__main__':
+    FPB = MyFritzPhonebook()
+#   to add an entry in the phonebook enter the number and here:
+    FPB.add_entry_list({'123': 'AA & BB', '06731123': 'AA & BB'})

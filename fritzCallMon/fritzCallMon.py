@@ -1,17 +1,21 @@
 import datetime
 import logging
+import os
 import socket
 import sys
 import threading
 import time
 from queue import Queue
 
+# import root directory into python module search path
+sys.path.insert(1, os.getcwd())  # noqa
+
 from fritzconnection import FritzConnection
 
 from fritzBackwardSearch import FritzBackwardSearch
 from fritzCallsDuringAbsense import FritzCallsDuringAbsense
-from prefs import read_configuration
 from logs import get_logger
+from prefs import read_configuration
 
 """
 Fritzbox Call Monitor
@@ -142,9 +146,9 @@ class CallMonServer():
             if not (msgtxt in ("CONNECTION_LOST", "REFRESH")):
                 msg = msgtxt.decode().split(';')
                 if msg[1] == "RING":
-                    self.FBS.runSearch(s=msg[3])
+                    self.FBS._runSearch(s=msg[3])
                 if msg[1] == "CALL":
-                    self.FBS.runSearch(s=msg[5])
+                    self.FBS._runSearch(s=msg[5])
 
     # ###########################################################
     # Running as Thread.
